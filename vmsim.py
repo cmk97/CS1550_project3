@@ -58,6 +58,7 @@ class PageRef(object):
 		self._ref = 0
 		self._dirty = False if mode == 'l' else True
 		self.size = size
+		self.offset = int(math.log(1024 * self.size, 2))
 
 	@property
 	def addr_str(self):
@@ -97,20 +98,18 @@ class PageRef(object):
 		"""Sets the PageRef's dirty bit to True"""
 		self._dirty = True
 
-	def page_number(self, offset):
+	def page_number(self):
 		"""Returns the page number given an offset"""
-		return self.addr >> offset
+		return self.addr >> self.offset
 
 
 	def __repr__(self):
 		""" For debugging..."""
-		offset = int(math.log(1024 * self.size, 2))
-		return '{}-{}'.format(self.page_number(offset), self.ref)
+		return '{}-{}'.format(self.page_number(), self.ref)
 
 	def __str__(self):
 		""" For debugging..."""
-		offset = int(math.log(1024 * self.size, 2))
-		return '{}-{}'.format(self.page_number(offset), self.ref)
+		return '{}-{}'.format(self.page_number(), self.ref)
 
 
 class SecondChance(object):
@@ -120,6 +119,7 @@ class SecondChance(object):
 		self.split = split
 		self.offset = offset
 		self.memory = []
+		self.index_cache = {}
 		self.pid = pid
 		self.cur_index = 0
 		self.statistics = {
@@ -136,6 +136,16 @@ class SecondChance(object):
 		"""Returns if space is available in Second chance memory implementation"""
 		return len(self.memory) < self.size
 	
+
+	def update_index_cache(self, old_page, new_page, index):
+		"""Updates cache for quick page lookups """
+		
+		# delete entry being evicted, if there is one
+		if old_page:
+			del self.index_cache[old_page.page_number()]
+		# Add new page
+		self.index_cache[new_page.page_number()] = index
+
 	def evict_and_replace(self, page):
 		# maximum loop is a full round-robin
 		for i in range(self.size):
@@ -144,6 +154,8 @@ class SecondChance(object):
 				old_page = self.memory[self.cur_index]
 				# Evict page
 				self.memory[self.cur_index] = page
+				# Update index cache
+				self.update_index_cache(old_page, page, self.cur_index)
 				# increment pointer
 				self.cur_index = (self.cur_index + 1) % self.size
 				return old_page
@@ -156,6 +168,8 @@ class SecondChance(object):
 		# If nothing is found, return index to original pos and return that (FIFO)
 		old_page = self.memory[self.cur_index]
 		self.memory[self.cur_index] = page
+		# update index cache
+		self.update_index_cache(old_page, page, self.cur_index)
 		self.cur_index = (self.cur_index + 1) % self.size
 		return old_page
 
@@ -168,7 +182,12 @@ class SecondChance(object):
 
 	def update(self, page):
 		# see if page is in memory
-		index = self.find_page(page)
+		#index = self.find_page(page)
+		try:
+			index = self.index_cache[page.page_number()]
+		except KeyError:
+			index = -1
+
 		pf = True
 		diskwrite = False
 		# Memory hit - page is in memory
@@ -185,6 +204,7 @@ class SecondChance(object):
 			#print(self.memory)
 			# add page reference to memory
 			self.memory.append(page)
+			self.update_index_cache(None, page, len(self.memory) - 1)
 		# Page fault with eviction
 		else:
 			# find next page to evict
@@ -202,7 +222,7 @@ class SecondChance(object):
 	def find_page(self, p):
 		"""Search physical memory for page. Returns index if found, -1 otherwise"""
 		for i, page in enumerate(self.memory):
-			if page.page_number(self.offset) == p.page_number(self.offset):
+			if page.page_number() == p.page_number():
 				return i
 		return -1
 
