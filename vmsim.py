@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+# Colby King
+# CS1550 Project 3 - VMSim
+
 import sys, getopt
 from collections import OrderedDict
 import math #for math.log(base, num)
@@ -149,12 +152,11 @@ class SecondChance(object):
 				self.memory[self.cur_index].set_ref_bit(0)
 			# increment pointer
 			self.cur_index = (self.cur_index + 1) % self.size
-			#print(self.cur_index, end='-')
 
 		# If nothing is found, return index to original pos and return that (FIFO)
-		self.cur_index = (self.cur_index + 1) % self.size
 		old_page = self.memory[self.cur_index]
 		self.memory[self.cur_index] = page
+		self.cur_index = (self.cur_index + 1) % self.size
 		return old_page
 
 	def update_statistics(self, pf, diskwrite):
@@ -185,16 +187,11 @@ class SecondChance(object):
 			self.memory.append(page)
 		# Page fault with eviction
 		else:
-			if self.pid == 1:
-				print('inserting {}. search at {}'.format(page, self.cur_index))
-				print(self.memory)
 			# find next page to evict
 			old = self.evict_and_replace(page)
 			if old.dirty:
 				diskwrite = True
-			if self.pid == 1:
-				print('evicted {}'.format(old))
-				print()
+
 
 		# update statistics 
 		self.update_statistics(pf, diskwrite)
@@ -238,7 +235,6 @@ class VMSim(object):
 		offset = int(math.log(1024 * pagesize, 2))
 		
 		size_split = self.calc_frame_alloc(frames, split)
-		print(size_split)
 		self.memory_allocations = []
 		
 		# Memory
@@ -274,18 +270,8 @@ class VMSim(object):
 
 def main():
 	args = get_args()
-	print(args)
 	mem_trace = read_trace(args)
-	#od = OrderedDict()
-	#offset = int(math.log(1024 * args['pagesize'], 2))
-	# for tr in mem_trace:
-	# 	print(hex(tr.page_number(offset)))
-
-	# print(set([hex(x.page_number(offset)) for x in mem_trace if x.process_id == 0]))
-
-
 	vm = VMSim(mem_trace, args['numframes'], args['pagesize'], args['mem_split'])
-	
 	vm.run_simulation()
 	vm.print_stats()
 
