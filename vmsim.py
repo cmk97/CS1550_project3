@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Colby King
 # CS1550 Project 3 - VMSim
@@ -22,9 +22,9 @@ def get_args():
 
 	for o, a in opts:
 		try:
-			if o == '-p':
+			if o == '-n':
 				arguments['numframes'] = int(a)
-			elif o == '-n':
+			elif o == '-p':
 				arguments['pagesize'] = int(a)
 			elif o == '-s':
 				arguments['mem_split'] = a
@@ -122,7 +122,7 @@ class SecondChance(object):
 		self.index_cache = {}
 		self.pid = pid
 		self.cur_index = 0
-		self.statistics = {
+		self._statistics = {
 			'accesses': 0,
 			'pagefaults': 0,
 			'diskwrites':0,
@@ -130,6 +130,10 @@ class SecondChance(object):
 			'pid': pid
 		}
 
+	@property
+	def statistics(self):
+		return self._statistics
+	
 
 	@property
 	def space_available(self):
@@ -139,7 +143,7 @@ class SecondChance(object):
 
 	def update_index_cache(self, old_page, new_page, index):
 		"""Updates cache for quick page lookups """
-		
+
 		# delete entry being evicted, if there is one
 		if old_page:
 			del self.index_cache[old_page.page_number()]
@@ -201,7 +205,6 @@ class SecondChance(object):
 			pf = False
 		# Page fault w/ no eviction
 		elif self.space_available:
-			#print(self.memory)
 			# add page reference to memory
 			self.memory.append(page)
 			self.update_index_cache(None, page, len(self.memory) - 1)
@@ -227,7 +230,7 @@ class SecondChance(object):
 		return -1
 
 	def __str__(self):
-		""" Formats the stats"""
+		""" Formats the stats for debugging"""
 		stats_str = (
 			"Algorithm: Second Chance\n"
 			"Number of frames: {}\n"
@@ -280,9 +283,33 @@ class VMSim(object):
 			proc_id = page_ref.process_id
 			self.memory_allocations[proc_id].update(page_ref)
 
+	def summarize_stats(self, pr_algos):
+		summary = {}
+		for algo in pr_algos:
+			for stat in algo.statistics:
+				try:
+					summary[stat] += algo.statistics[stat]
+				except KeyError:
+					summary[stat] = algo.statistics[stat]
+		return summary
+
 	def print_stats(self):
-		for algo in self.memory_allocations:
-			print(algo)
+		summary = self.summarize_stats(self.memory_allocations)
+		stats_str = (
+			"Algorithm: Second Chance\n"
+			"Number of frames: {}\n"
+			"Page size: {} KB\n"
+			"Total memory accesses: {}\n"
+			"Total page faults: {}\n"
+			"Total writes to disk: {}"
+		).format(
+			self.frames,
+			self.pagesize,
+			summary['accesses'],
+			summary['pagefaults'],
+			summary['diskwrites']
+		)
+		print(stats_str)
 
 
 
